@@ -29,7 +29,6 @@ export const AuthModal: React.FC = () => {
   const [batch, setBatch] = useState('65');
   const [section, setSection] = useState('B');
   const [otp, setOtp] = useState('');
-  const [serverOtp, setServerOtp] = useState<string | null>(null);
 
   // Status & Feedback
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +52,6 @@ export const AuthModal: React.FC = () => {
     setError(null);
     setSuccessMsg(null);
     setOtp('');
-    setServerOtp(null);
   };
 
   // Direct Password Login (Instant access without waiting for OTP)
@@ -83,7 +81,6 @@ export const AuthModal: React.FC = () => {
     try {
       const res = await sendLoginOtp(email.trim(), password);
       if (res.success) {
-        if (res.demoOtp) setServerOtp(res.demoOtp);
         setSuccessMsg(`Verification code sent to ${email.trim()}.`);
         setMode('LOGIN_OTP');
       }
@@ -94,7 +91,7 @@ export const AuthModal: React.FC = () => {
     }
   };
 
-  // STEP 2: VERIFY LOGIN OTP (Enters real code from Gmail or fallback 123456)
+  // STEP 2: VERIFY LOGIN OTP (Enters real code from Gmail)
   const handleVerifyLoginOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     resetAllStates();
@@ -126,7 +123,6 @@ export const AuthModal: React.FC = () => {
         section: section.trim(),
       });
       if (res.success) {
-        if (res.demoOtp) setServerOtp(res.demoOtp);
         setSuccessMsg(`Verification code sent to ${email.trim()}.`);
         setMode('REGISTER_OTP');
       }
@@ -171,7 +167,6 @@ export const AuthModal: React.FC = () => {
     try {
       const res = await sendForgotOtp(email.trim());
       if (res.success) {
-        if (res.demoOtp) setServerOtp(res.demoOtp);
         setSuccessMsg(`Password reset verification code sent to ${email.trim()}.`);
         setMode('FORGOT_OTP');
       }
@@ -366,18 +361,6 @@ export const AuthModal: React.FC = () => {
                   className="w-full pl-9 pr-3 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-center tracking-widest text-lg placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
                 />
               </div>
-            </div>
-
-            {/* Fallback helper badge */}
-            <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-700 text-[11px] text-slate-300 flex items-center justify-between">
-              <span>Delayed email? Backup code: <strong className="text-sky-400 font-mono">123456</strong></span>
-              <button
-                type="button"
-                onClick={() => setOtp(serverOtp || '123456')}
-                className="text-[11px] text-sky-400 hover:underline font-medium"
-              >
-                Auto-Fill
-              </button>
             </div>
 
             <button
@@ -583,18 +566,6 @@ export const AuthModal: React.FC = () => {
               </div>
             </div>
 
-            {/* Fallback helper badge */}
-            <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-700 text-[11px] text-slate-300 flex items-center justify-between">
-              <span>Delayed email? Backup code: <strong className="text-sky-400 font-mono">123456</strong></span>
-              <button
-                type="button"
-                onClick={() => setOtp(serverOtp || '123456')}
-                className="text-[11px] text-sky-400 hover:underline font-medium"
-              >
-                Auto-Fill
-              </button>
-            </div>
-
             <button
               type="submit"
               disabled={loading || otp.length < 5}
@@ -694,18 +665,6 @@ export const AuthModal: React.FC = () => {
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-center tracking-widest text-base focus:outline-none focus:border-sky-500"
                 />
               </div>
-            </div>
-
-            {/* Fallback helper badge */}
-            <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-700 text-[11px] text-slate-300 flex items-center justify-between">
-              <span>Delayed email? Backup code: <strong className="text-sky-400 font-mono">123456</strong></span>
-              <button
-                type="button"
-                onClick={() => setOtp(serverOtp || '123456')}
-                className="text-[11px] text-sky-400 hover:underline font-medium"
-              >
-                Auto-Fill
-              </button>
             </div>
 
             <div>
