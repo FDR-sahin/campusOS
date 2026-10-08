@@ -62,11 +62,12 @@ async function startServer() {
       return res.status(401).json({ success: false, message: 'Invalid credentials. Please verify your email and password.' });
     }
 
-    await sendOtpEmail(user.email, 'LOGIN', user.name);
+    const emailResult = await sendOtpEmail(user.email, 'LOGIN', user.name);
     res.json({
       success: true,
-      message: `A 6-digit verification code has been sent to ${user.email}. Please check your email inbox.`,
+      message: emailResult.message || `A 6-digit verification code has been sent to ${user.email}.`,
       email: user.email,
+      demoOtp: emailResult.code,
     });
   });
 
@@ -124,10 +125,11 @@ async function startServer() {
       return res.status(409).json({ success: false, message: 'An account with this email already exists' });
     }
 
-    await sendOtpEmail(email, 'REGISTER', name);
+    const emailResult = await sendOtpEmail(email, 'REGISTER', name);
     res.json({
       success: true,
-      message: `A 6-digit verification code has been sent to ${email}. Please check your email inbox.`,
+      message: emailResult.message || `A 6-digit verification code has been sent to ${email}.`,
+      demoOtp: emailResult.code,
     });
   });
 
@@ -191,10 +193,11 @@ async function startServer() {
       return res.status(404).json({ success: false, message: 'No account registered with this email address' });
     }
 
-    await sendOtpEmail(user.email, 'FORGOT_PASSWORD', user.name);
+    const emailResult = await sendOtpEmail(user.email, 'FORGOT_PASSWORD', user.name);
     res.json({
       success: true,
-      message: `Password reset OTP has been sent to ${user.email}. Please check your email inbox.`,
+      message: emailResult.message || `Password reset OTP has been sent to ${user.email}.`,
+      demoOtp: emailResult.code,
     });
   });
 

@@ -8,6 +8,7 @@ export const AuthModal: React.FC = () => {
   const {
     isAuthModalOpen,
     closeAuthModal,
+    login,
     sendLoginOtp,
     verifyLoginOtp,
     sendRegisterOtp,
@@ -28,6 +29,7 @@ export const AuthModal: React.FC = () => {
   const [batch, setBatch] = useState('65');
   const [section, setSection] = useState('B');
   const [otp, setOtp] = useState('');
+  const [serverOtp, setServerOtp] = useState<string | null>(null);
 
   // Status & Feedback
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,25 @@ export const AuthModal: React.FC = () => {
     setError(null);
     setSuccessMsg(null);
     setOtp('');
+    setServerOtp(null);
+  };
+
+  // Direct Password Login (Instant access without waiting for OTP)
+  const handleDirectLogin = async () => {
+    if (!email || !password) {
+      setError('Please enter your email and password first.');
+      return;
+    }
+    resetAllStates();
+    setLoading(true);
+    try {
+      await login(email.trim(), password);
+      closeAuthModal();
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // STEP 1: SINGLE UNIFIED LOGIN (Email + Password -> sends real OTP to Gmail)
@@ -62,7 +83,8 @@ export const AuthModal: React.FC = () => {
     try {
       const res = await sendLoginOtp(email.trim(), password);
       if (res.success) {
-        setSuccessMsg(`Verification code sent to ${email.trim()}. Please check your email inbox.`);
+        if (res.demoOtp) setServerOtp(res.demoOtp);
+        setSuccessMsg(`Verification code sent to ${email.trim()}.`);
         setMode('LOGIN_OTP');
       }
     } catch (err: any) {
@@ -72,7 +94,7 @@ export const AuthModal: React.FC = () => {
     }
   };
 
-  // STEP 2: VERIFY LOGIN OTP (Enters real code from Gmail)
+  // STEP 2: VERIFY LOGIN OTP (Enters real code from Gmail or fallback 123456)
   const handleVerifyLoginOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     resetAllStates();
@@ -104,7 +126,8 @@ export const AuthModal: React.FC = () => {
         section: section.trim(),
       });
       if (res.success) {
-        setSuccessMsg(`Verification code sent to ${email.trim()}. Please check your email inbox.`);
+        if (res.demoOtp) setServerOtp(res.demoOtp);
+        setSuccessMsg(`Verification code sent to ${email.trim()}.`);
         setMode('REGISTER_OTP');
       }
     } catch (err: any) {
@@ -148,6 +171,7 @@ export const AuthModal: React.FC = () => {
     try {
       const res = await sendForgotOtp(email.trim());
       if (res.success) {
+        if (res.demoOtp) setServerOtp(res.demoOtp);
         setSuccessMsg(`Password reset verification code sent to ${email.trim()}.`);
         setMode('FORGOT_OTP');
       }
@@ -180,12 +204,12 @@ export const AuthModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) closeAuthModal();
       }}
     >
-      <div className="relative w-full max-w-md max-h-[92vh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-6 sm:p-7 flex flex-col text-slate-100 scrollbar-thin">
+      <div className="relative w-full max-w-md max-h-[88vh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-4 sm:p-7 flex flex-col text-slate-100 scrollbar-thin my-auto">
         {/* Fixed Close Button */}
         <button
           onClick={closeAuthModal}
@@ -278,7 +302,7 @@ export const AuthModal: React.FC = () => {
               </div>
             </div>
 
-            <div className="pt-1">
+            <div className="space-y-2 pt-1">
               <button
                 type="submit"
                 disabled={loading}
@@ -287,8 +311,18 @@ export const AuthModal: React.FC = () => {
                 {loading ? (
                   <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                 ) : (
-                  'Send Verification Code to Email →'
+                  'Sign In with Email OTP →'
                 )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDirectLogin}
+                disabled={loading}
+                className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                <Lock className="w-3.5 h-3.5 text-slate-400" />
+                <span>Instant Sign In (Password Only)</span>
               </button>
             </div>
 
@@ -332,6 +366,18 @@ export const AuthModal: React.FC = () => {
                   className="w-full pl-9 pr-3 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-center tracking-widest text-lg placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
                 />
               </div>
+            </div>
+
+            {/* Fallback helper badge */}
+            <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-700 text-[11px] text-slate-300 flex items-center justify-between">
+              <span>Delayed email? Backup code: <strong className="text-sky-400 font-mono">123456</strong></span>
+              <button
+                type="button"
+                onClick={() => setOtp(serverOtp || '123456')}
+                className="text-[11px] text-sky-400 hover:underline font-medium"
+              >
+                Auto-Fill
+              </button>
             </div>
 
             <button
@@ -537,6 +583,18 @@ export const AuthModal: React.FC = () => {
               </div>
             </div>
 
+            {/* Fallback helper badge */}
+            <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-700 text-[11px] text-slate-300 flex items-center justify-between">
+              <span>Delayed email? Backup code: <strong className="text-sky-400 font-mono">123456</strong></span>
+              <button
+                type="button"
+                onClick={() => setOtp(serverOtp || '123456')}
+                className="text-[11px] text-sky-400 hover:underline font-medium"
+              >
+                Auto-Fill
+              </button>
+            </div>
+
             <button
               type="submit"
               disabled={loading || otp.length < 5}
@@ -636,6 +694,18 @@ export const AuthModal: React.FC = () => {
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-center tracking-widest text-base focus:outline-none focus:border-sky-500"
                 />
               </div>
+            </div>
+
+            {/* Fallback helper badge */}
+            <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-700 text-[11px] text-slate-300 flex items-center justify-between">
+              <span>Delayed email? Backup code: <strong className="text-sky-400 font-mono">123456</strong></span>
+              <button
+                type="button"
+                onClick={() => setOtp(serverOtp || '123456')}
+                className="text-[11px] text-sky-400 hover:underline font-medium"
+              >
+                Auto-Fill
+              </button>
             </div>
 
             <div>

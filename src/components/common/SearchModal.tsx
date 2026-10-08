@@ -160,22 +160,22 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onNav
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-8 sm:pt-14 p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-3 sm:pt-14 p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div className="relative w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh]">
         {/* Search Input Bar */}
-        <div className="p-4 border-b border-slate-800 flex items-center gap-3 bg-slate-950/50">
-          <Search className="w-5 h-5 text-sky-400 shrink-0" />
+        <div className="p-3 sm:p-4 border-b border-slate-800 flex items-center gap-2 sm:gap-3 bg-slate-950/50">
+          <Search className="w-4 h-4 sm:w-5 sm:h-5 text-sky-400 shrink-0" />
           <input
             type="text"
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search anything: lost watch, teachers, CSE 311 routine, shuttle, notices..."
-            className="w-full bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
+            placeholder="Search lost items, teachers, exams, shuttle, notices..."
+            className="w-full bg-transparent text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none"
           />
           {query && (
             <button
@@ -191,12 +191,12 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onNav
             className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
             title="Close (Esc)"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
 
         {/* Search Results Area */}
-        <div className="p-4 overflow-y-auto space-y-5 flex-1 scrollbar-thin">
+        <div className="p-3 sm:p-4 overflow-y-auto space-y-4 sm:space-y-5 flex-1 scrollbar-thin">
           {loading && (
             <div className="py-8 text-center text-xs text-sky-400 font-mono flex items-center justify-center gap-2">
               <span className="w-3.5 h-3.5 border-2 border-sky-400/20 border-t-sky-400 rounded-full animate-spin" />

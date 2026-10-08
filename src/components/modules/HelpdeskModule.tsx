@@ -236,52 +236,54 @@ export const HelpdeskModule: React.FC = () => {
         </div>
 
         {/* Top Segmented Navigation Tabs */}
-        <div className="flex items-center p-1 bg-slate-900 rounded-2xl border border-slate-800 shrink-0 self-start md:self-auto overflow-x-auto scrollbar-none">
-          <button
-            onClick={() => setActiveTab('faq')}
-            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'faq' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>AI & FAQs</span>
-          </button>
+        <div className="w-full md:w-auto overflow-x-auto pb-1 scrollbar-none">
+          <div className="flex items-center p-1 bg-slate-900 rounded-2xl border border-slate-800 min-w-max gap-1">
+            <button
+              onClick={() => setActiveTab('faq')}
+              className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'faq' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>AI & FAQs</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('inquiry')}
-            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'inquiry' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <MessageSquarePlus className="w-3.5 h-3.5" />
-            <span>Submit Inquiry</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('inquiry')}
+              className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'inquiry' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <MessageSquarePlus className="w-3.5 h-3.5" />
+              <span>Submit Inquiry</span>
+            </button>
 
-          <button
-            onClick={() => {
-              setActiveTab('tickets');
-              loadInquiries();
-            }}
-            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'tickets' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Inbox className="w-3.5 h-3.5" />
-            <span>My Tickets</span>
-          </button>
+            <button
+              onClick={() => {
+                setActiveTab('tickets');
+                loadInquiries();
+              }}
+              className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'tickets' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Inbox className="w-3.5 h-3.5" />
+              <span>My Tickets</span>
+            </button>
 
-          <button
-            onClick={() => {
-              setActiveTab('directory');
-              loadDirectory();
-            }}
-            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'directory' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Campus Directory</span>
-          </button>
+            <button
+              onClick={() => {
+                setActiveTab('directory');
+                loadDirectory();
+              }}
+              className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'directory' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Campus Directory</span>
+            </button>
+          </div>
         </div>
       </div>
 
