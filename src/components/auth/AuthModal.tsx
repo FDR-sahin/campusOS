@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { X, Lock, Mail, User, Hash, AlertCircle, CheckCircle2, ArrowLeft, KeyRound, ShieldCheck } from 'lucide-react';
+import { X, Lock, Mail, User, Hash, AlertCircle, CheckCircle2, ArrowLeft, KeyRound, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-type ModalMode = 'LOGIN' | 'LOGIN_OTP' | 'REGISTER' | 'REGISTER_OTP' | 'FORGOT_EMAIL' | 'FORGOT_OTP';
+type ModalMode = 'LOGIN' | 'REGISTER' | 'REGISTER_OTP' | 'FORGOT_EMAIL' | 'FORGOT_OTP';
 
 export const AuthModal: React.FC = () => {
   const {
     isAuthModalOpen,
     closeAuthModal,
     login,
-    sendLoginOtp,
-    verifyLoginOtp,
     sendRegisterOtp,
     verifyRegisterOtp,
     sendForgotOtp,
@@ -19,7 +17,7 @@ export const AuthModal: React.FC = () => {
 
   const [mode, setMode] = useState<ModalMode>('LOGIN');
 
-  // Form Fields - clean default values
+  // Form Fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,6 +32,7 @@ export const AuthModal: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   // Close on Escape key
   useEffect(() => {
@@ -46,6 +45,13 @@ export const AuthModal: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isAuthModalOpen, closeAuthModal]);
 
+  // Resend countdown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown((prev) => prev - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
   if (!isAuthModalOpen) return null;
 
   const resetAllStates = () => {
@@ -54,62 +60,37 @@ export const AuthModal: React.FC = () => {
     setOtp('');
   };
 
-  // Direct Password Login (Instant access without waiting for OTP)
-  const handleDirectLogin = async () => {
+  // 1. SIGN IN SUBMIT
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!email || !password) {
-      setError('Please enter your email and password first.');
+      setError('Please enter your email and password.');
       return;
     }
     resetAllStates();
     setLoading(true);
+
     try {
       await login(email.trim(), password);
       closeAuthModal();
     } catch (err: any) {
-      setError(err.message || 'Invalid email or password.');
+      setError(err.message || 'Invalid credentials. Please check your email and password.');
     } finally {
       setLoading(false);
     }
   };
 
-  // STEP 1: SINGLE UNIFIED LOGIN (Email + Password -> sends real OTP to Gmail)
-  const handleLoginSubmit = async (e: React.FormEvent) => {
+  // 2. REGISTRATION STEP 1: Send OTP to Email
+  const handleSendRegisterOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    resetAllStates();
-    setLoading(true);
-
-    try {
-      const res = await sendLoginOtp(email.trim(), password);
-      if (res.success) {
-        setSuccessMsg(`Verification code sent to ${email.trim()}.`);
-        setMode('LOGIN_OTP');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Login failed. Please verify your email and password.');
-    } finally {
-      setLoading(false);
+    if (!name || !email || !password || !department) {
+      setError('Please fill in all required fields.');
+      return;
     }
-  };
-
-  // STEP 2: VERIFY LOGIN OTP (Enters real code from Gmail)
-  const handleVerifyLoginOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    resetAllStates();
-    setLoading(true);
-
-    try {
-      await verifyLoginOtp(email.trim(), otp.trim());
-      closeAuthModal();
-    } catch (err: any) {
-      setError(err.message || 'Invalid or expired verification code.');
-    } finally {
-      setLoading(false);
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
     }
-  };
-
-  // STEP 1: REGISTER
-  const handleRegisterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
     resetAllStates();
     setLoading(true);
 
@@ -122,20 +103,23 @@ export const AuthModal: React.FC = () => {
         batch: batch.trim(),
         section: section.trim(),
       });
-      if (res.success) {
-        setSuccessMsg(`Verification code sent to ${email.trim()}.`);
-        setMode('REGISTER_OTP');
-      }
+      setSuccessMsg(res.message || `A 6-digit verification code has been sent to ${email}.`);
+      setMode('REGISTER_OTP');
+      setResendCooldown(60);
     } catch (err: any) {
-      setError(err.message || 'Registration failed. Email may already be registered.');
+      setError(err.message || 'Failed to send verification code. Please check your email.');
     } finally {
       setLoading(false);
     }
   };
 
-  // STEP 2: VERIFY REGISTER OTP
+  // 3. REGISTRATION STEP 2: Verify OTP and Create Account
   const handleVerifyRegisterOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!otp || otp.trim().length < 6) {
+      setError('Please enter the complete 6-digit verification code.');
+      return;
+    }
     resetAllStates();
     setLoading(true);
 
@@ -145,53 +129,64 @@ export const AuthModal: React.FC = () => {
         email: email.trim(),
         password,
         department,
-        studentId: studentId.trim(),
+        studentId: studentId.trim() || undefined,
         batch: batch.trim(),
         section: section.trim(),
         otp: otp.trim(),
       });
       closeAuthModal();
     } catch (err: any) {
-      setError(err.message || 'Invalid verification code.');
+      setError(err.message || 'Invalid verification code. Please check your inbox or click Resend.');
     } finally {
       setLoading(false);
     }
   };
 
-  // FORGOT PASSWORD STEP 1: Send Reset OTP
-  const handleForgotEmailSubmit = async (e: React.FormEvent) => {
+  // 4. FORGOT PASSWORD STEP 1: Send Reset OTP
+  const handleSendForgotOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email) {
+      setError('Please enter your registered email address.');
+      return;
+    }
     resetAllStates();
     setLoading(true);
 
     try {
       const res = await sendForgotOtp(email.trim());
-      if (res.success) {
-        setSuccessMsg(`Password reset verification code sent to ${email.trim()}.`);
-        setMode('FORGOT_OTP');
-      }
+      setSuccessMsg(res.message || `Password reset code sent to ${email}.`);
+      setMode('FORGOT_OTP');
+      setResendCooldown(60);
     } catch (err: any) {
-      setError(err.message || 'No account registered with this email address.');
+      setError(err.message || 'No account found with this email address.');
     } finally {
       setLoading(false);
     }
   };
 
-  // FORGOT PASSWORD STEP 2: Verify OTP + New Password
-  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+  // 5. FORGOT PASSWORD STEP 2: Verify OTP and Reset
+  const handleResetPasswordWithOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!otp || otp.trim().length < 6) {
+      setError('Please enter the 6-digit verification code.');
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      setError('New password must be at least 6 characters long.');
+      return;
+    }
     resetAllStates();
     setLoading(true);
 
     try {
       await resetPassword(email.trim(), otp.trim(), newPassword);
-      setSuccessMsg('Password reset successful! Please log in with your new password.');
-      setMode('LOGIN');
+      setSuccessMsg('Password updated successfully! Please sign in with your new password.');
       setPassword(newPassword);
       setNewPassword('');
       setOtp('');
+      setMode('LOGIN');
     } catch (err: any) {
-      setError(err.message || 'Failed to reset password. Please verify the code.');
+      setError(err.message || 'Invalid verification code or password reset failed.');
     } finally {
       setLoading(false);
     }
@@ -204,7 +199,7 @@ export const AuthModal: React.FC = () => {
         if (e.target === e.currentTarget) closeAuthModal();
       }}
     >
-      <div className="relative w-full max-w-md max-h-[88vh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-4 sm:p-7 flex flex-col text-slate-100 scrollbar-thin my-auto">
+      <div className="relative w-full max-w-md max-h-[88vh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-5 sm:p-7 flex flex-col text-slate-100 scrollbar-thin my-auto">
         {/* Fixed Close Button */}
         <button
           onClick={closeAuthModal}
@@ -223,16 +218,17 @@ export const AuthModal: React.FC = () => {
           </div>
           <h2 className="text-xl font-bold text-white tracking-tight">
             {mode === 'LOGIN' && 'Sign In to CampusOS'}
-            {mode === 'LOGIN_OTP' && 'Verify Email Code'}
-            {mode === 'REGISTER' && 'Create Account'}
+            {mode === 'REGISTER' && 'Create Student Account'}
             {mode === 'REGISTER_OTP' && 'Verify Email Address'}
-            {mode === 'FORGOT_EMAIL' && 'Reset Password'}
-            {mode === 'FORGOT_OTP' && 'Set New Password'}
+            {mode === 'FORGOT_EMAIL' && 'Reset Your Password'}
+            {mode === 'FORGOT_OTP' && 'Enter Verification Code'}
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            {mode.includes('OTP')
-              ? 'Enter the 6-digit code received in your email inbox.'
-              : 'Sign in to access your courses, routine, notices, and university services.'}
+            {mode === 'LOGIN' && 'Sign in with your email and password to access your campus portal.'}
+            {mode === 'REGISTER' && 'Step 1 of 2: Fill in your university details to get your verification code.'}
+            {mode === 'REGISTER_OTP' && `Step 2 of 2: Enter the 6-digit code sent to ${email}`}
+            {mode === 'FORGOT_EMAIL' && 'Enter your registered email to receive a password reset code.'}
+            {mode === 'FORGOT_OTP' && `Enter the verification code sent to ${email} and choose a new password.`}
           </p>
         </div>
 
@@ -251,7 +247,7 @@ export const AuthModal: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* VIEW 1: UNIFIED SINGLE LOGIN FORM */}
+        {/* VIEW 1: SIGN IN FORM */}
         {/* ========================================================================= */}
         {mode === 'LOGIN' && (
           <form onSubmit={handleLoginSubmit} className="space-y-4">
@@ -297,7 +293,7 @@ export const AuthModal: React.FC = () => {
               </div>
             </div>
 
-            <div className="space-y-2 pt-1">
+            <div className="pt-2">
               <button
                 type="submit"
                 disabled={loading}
@@ -306,18 +302,8 @@ export const AuthModal: React.FC = () => {
                 {loading ? (
                   <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                 ) : (
-                  'Sign In with Email OTP →'
+                  'Sign In'
                 )}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDirectLogin}
-                disabled={loading}
-                className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
-              >
-                <Lock className="w-3.5 h-3.5 text-slate-400" />
-                <span>Instant Sign In (Password Only)</span>
               </button>
             </div>
 
@@ -331,79 +317,17 @@ export const AuthModal: React.FC = () => {
                 }}
                 className="text-sky-400 hover:underline font-semibold"
               >
-                Create Account
+                Create Account (OTP Verification)
               </button>
             </div>
           </form>
         )}
 
         {/* ========================================================================= */}
-        {/* VIEW 2: LOGIN OTP VERIFICATION */}
-        {/* ========================================================================= */}
-        {mode === 'LOGIN_OTP' && (
-          <form onSubmit={handleVerifyLoginOtp} className="space-y-4">
-            <div className="p-3.5 rounded-xl bg-slate-800/70 border border-slate-700 text-xs text-slate-300 leading-relaxed">
-              A 6-digit verification code has been sent to <strong className="text-white font-medium">{email}</strong>. Please check your inbox (and spam folder) and enter it below.
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Enter 6-Digit Code</label>
-              <div className="relative">
-                <KeyRound className="w-4 h-4 text-slate-500 absolute left-3 top-3.5" />
-                <input
-                  type="text"
-                  maxLength={6}
-                  required
-                  autoFocus
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                  placeholder="••••••"
-                  className="w-full pl-9 pr-3 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-center tracking-widest text-lg placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading || otp.length < 5}
-              className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-lg shadow-sky-600/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-              ) : (
-                'Confirm Code & Sign In'
-              )}
-            </button>
-
-            <div className="flex items-center justify-between text-xs text-slate-400 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  resetAllStates();
-                  setMode('LOGIN');
-                }}
-                className="flex items-center gap-1 hover:text-white transition-colors"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to login</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleLoginSubmit}
-                disabled={loading}
-                className="text-sky-400 hover:underline transition-colors"
-              >
-                Resend Code
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* ========================================================================= */}
-        {/* VIEW 3: REGISTRATION */}
+        {/* VIEW 2: REGISTRATION STEP 1 (Details Form) */}
         {/* ========================================================================= */}
         {mode === 'REGISTER' && (
-          <form onSubmit={handleRegisterSubmit} className="space-y-3">
+          <form onSubmit={handleSendRegisterOtp} className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">Full Name</label>
               <div className="relative">
@@ -507,22 +431,19 @@ export const AuthModal: React.FC = () => {
               </div>
             </div>
 
-            <div className="text-[11px] text-slate-400 bg-slate-800/40 p-2.5 rounded-xl border border-slate-800 flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0" />
-              <span>A secure verification code will be sent to your email to activate the account.</span>
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-lg shadow-sky-600/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                ) : (
+                  'Send Verification Code (OTP)'
+                )}
+              </button>
             </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-lg shadow-sky-600/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-              ) : (
-                'Send Verification Code to Email →'
-              )}
-            </button>
 
             <div className="pt-2 text-center text-xs text-slate-400">
               Already have an account?{' '}
@@ -541,16 +462,22 @@ export const AuthModal: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* VIEW 4: VERIFY REGISTRATION OTP */}
+        {/* VIEW 3: REGISTRATION STEP 2 (Enter OTP) */}
         {/* ========================================================================= */}
         {mode === 'REGISTER_OTP' && (
           <form onSubmit={handleVerifyRegisterOtp} className="space-y-4">
-            <div className="p-3.5 rounded-xl bg-slate-800/70 border border-slate-700 text-xs text-slate-300 leading-relaxed">
-              We have sent a 6-digit confirmation code to <strong className="text-white font-medium">{email}</strong>.
+            <div className="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700 text-xs text-slate-300">
+              <div className="flex items-center gap-2 font-semibold text-sky-400 mb-1">
+                <ShieldCheck className="w-4 h-4" />
+                Verification Code Sent
+              </div>
+              <div>
+                We have dispatched a 6-digit OTP code to <strong className="text-white">{email}</strong>. Please check your inbox (or spam folder) and enter it below.
+              </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Enter Verification Code</label>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">6-Digit Verification Code</label>
               <div className="relative">
                 <KeyRound className="w-4 h-4 text-slate-500 absolute left-3 top-3.5" />
                 <input
@@ -560,45 +487,78 @@ export const AuthModal: React.FC = () => {
                   autoFocus
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                  placeholder="••••••"
-                  className="w-full pl-9 pr-3 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-center tracking-widest text-lg placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
+                  placeholder="Enter 6-digit OTP"
+                  className="w-full pl-9 pr-3 py-3 rounded-xl bg-slate-800 border-2 border-sky-500/50 text-white text-center text-lg font-mono tracking-widest placeholder:text-slate-600 focus:outline-none focus:border-sky-400"
                 />
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading || otp.length < 5}
-              className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-lg shadow-sky-600/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-              ) : (
-                'Verify & Activate Account'
-              )}
-            </button>
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={loading || otp.length < 6}
+                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                ) : (
+                  'Verify OTP & Complete Registration'
+                )}
+              </button>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                resetAllStates();
-                setMode('REGISTER');
-              }}
-              className="text-xs text-slate-400 hover:text-white flex items-center gap-1 mx-auto transition-colors"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Edit Registration</span>
-            </button>
+            <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  resetAllStates();
+                  setMode('REGISTER');
+                }}
+                className="text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={loading || resendCooldown > 0}
+                onClick={async () => {
+                  setLoading(true);
+                  setError(null);
+                  try {
+                    await sendRegisterOtp({
+                      name,
+                      email,
+                      password,
+                      department,
+                      batch,
+                      section,
+                    });
+                    setSuccessMsg('A new 6-digit OTP has been sent to your email.');
+                    setResendCooldown(60);
+                  } catch (err: any) {
+                    setError(err.message || 'Failed to resend code.');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="text-sky-400 hover:text-sky-300 disabled:opacity-50 flex items-center gap-1 transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}</span>
+              </button>
+            </div>
           </form>
         )}
 
         {/* ========================================================================= */}
-        {/* VIEW 5: FORGOT PASSWORD (EMAIL INPUT) */}
+        {/* VIEW 4: FORGOT PASSWORD STEP 1 */}
         {/* ========================================================================= */}
         {mode === 'FORGOT_EMAIL' && (
-          <form onSubmit={handleForgotEmailSubmit} className="space-y-3.5">
+          <form onSubmit={handleSendForgotOtp} className="space-y-3.5">
             <div className="p-3.5 rounded-xl bg-slate-800/70 border border-slate-700 text-xs text-slate-300 leading-relaxed">
-              Enter your registered email address. We will send a 6-digit password reset code to your email inbox.
+              Enter your registered email address. We will send a 6-digit verification code to reset your password.
             </div>
 
             <div>
@@ -610,7 +570,7 @@ export const AuthModal: React.FC = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
+                  placeholder="Enter your registered email"
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-sky-500"
                 />
               </div>
@@ -618,13 +578,13 @@ export const AuthModal: React.FC = () => {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !email}
               className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
               ) : (
-                'Send Password Reset Code'
+                'Send Reset Code (OTP)'
               )}
             </button>
 
@@ -637,18 +597,18 @@ export const AuthModal: React.FC = () => {
               className="text-xs text-slate-400 hover:text-white flex items-center gap-1 mx-auto transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Cancel & Return to Login</span>
+              <span>Back to Login</span>
             </button>
           </form>
         )}
 
         {/* ========================================================================= */}
-        {/* VIEW 6: FORGOT PASSWORD (OTP + NEW PASSWORD) */}
+        {/* VIEW 5: FORGOT PASSWORD STEP 2 (Enter OTP & New Password) */}
         {/* ========================================================================= */}
         {mode === 'FORGOT_OTP' && (
-          <form onSubmit={handleResetPasswordSubmit} className="space-y-3.5">
-            <div className="p-3.5 rounded-xl bg-slate-800/70 border border-slate-700 text-xs text-slate-300 leading-relaxed">
-              Resetting password for <strong className="text-white font-medium">{email}</strong>. Enter the verification code and your new password.
+          <form onSubmit={handleResetPasswordWithOtp} className="space-y-3.5">
+            <div className="p-3 rounded-xl bg-slate-800/70 border border-slate-700 text-xs text-slate-300">
+              Enter the 6-digit OTP code sent to <strong className="text-white">{email}</strong> and your new password.
             </div>
 
             <div>
@@ -659,10 +619,11 @@ export const AuthModal: React.FC = () => {
                   type="text"
                   maxLength={6}
                   required
+                  autoFocus
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                  placeholder="••••••"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-center tracking-widest text-base focus:outline-none focus:border-sky-500"
+                  placeholder="Enter 6-digit OTP"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-800 border-2 border-sky-500/50 text-white text-center font-mono text-base tracking-widest focus:outline-none focus:border-sky-400"
                 />
               </div>
             </div>
@@ -684,30 +645,55 @@ export const AuthModal: React.FC = () => {
 
             <button
               type="submit"
-              disabled={loading || otp.length < 5 || !newPassword}
-              className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              disabled={loading || otp.length < 6 || !newPassword}
+              className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
               ) : (
-                'Update Password & Sign In'
+                'Verify & Reset Password'
               )}
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                resetAllStates();
-                setMode('FORGOT_EMAIL');
-              }}
-              className="text-xs text-slate-400 hover:text-white flex items-center gap-1 mx-auto transition-colors"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back</span>
-            </button>
+            <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  resetAllStates();
+                  setMode('FORGOT_EMAIL');
+                }}
+                className="text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={loading || resendCooldown > 0}
+                onClick={async () => {
+                  setLoading(true);
+                  setError(null);
+                  try {
+                    await sendForgotOtp(email);
+                    setSuccessMsg('A new reset OTP has been sent to your email.');
+                    setResendCooldown(60);
+                  } catch (err: any) {
+                    setError(err.message || 'Failed to resend code.');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="text-sky-400 hover:text-sky-300 disabled:opacity-50 flex items-center gap-1 transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}</span>
+              </button>
+            </div>
           </form>
         )}
       </div>
     </div>
   );
 };
+

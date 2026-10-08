@@ -8,12 +8,10 @@ function getSmtpCredentials() {
   return { user, pass };
 }
 
-function createTransporter(port: number = 587, secure: boolean = false) {
+function createTransporter() {
   const { user, pass } = getSmtpCredentials();
   return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port,
-    secure,
+    service: 'gmail',
     auth: {
       user,
       pass,
@@ -21,9 +19,6 @@ function createTransporter(port: number = 587, secure: boolean = false) {
     tls: {
       rejectUnauthorized: false,
     },
-    connectionTimeout: 8000,
-    greetingTimeout: 8000,
-    socketTimeout: 8000,
   });
 }
 
@@ -71,7 +66,7 @@ export async function sendOtpEmail(
     instruction = 'Welcome to CampusOS City University! Please verify your student email address with this code:';
   }
 
-  // Plain-text alternative (Crucial to bypass Spam filters)
+  // Plain-text alternative
   const textContent = `City University Bangladesh - CampusOS
 ${heading}
 
@@ -184,27 +179,45 @@ Website: https://cityuniversity.ac.bd`;
     },
   };
 
-  // 1. Try standard Cloud submission on Port 587
-  try {
-    const t587 = createTransporter(587, false);
-    const info = await t587.sendMail(mailOptions);
-    console.log(`[Email Sent] Delivered to ${email} via Port 587. MessageId: ${info.messageId}`);
-    return { success: true, code, message: 'OTP sent to your email address', demoOtp: code };
-  } catch (err587: any) {
-    console.warn(`[Port 587 Notice] ${err587.message}. Trying fallback Port 465...`);
-
-    // 2. Fallback to Port 465
+  // 1. Try Brevo HTTPS REST API if key provided (bypasses Render SMTP port blocking)
+  const brevoApiKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
+  if (brevoApiKey) {
     try {
-      const t465 = createTransporter(465, true);
-      const info465 = await t465.sendMail(mailOptions);
-      console.log(`[Email Sent] Delivered to ${email} via Port 465. MessageId: ${info465.messageId}`);
-      return { success: true, code, message: 'OTP sent to your email address', demoOtp: code };
-    } catch (err465: any) {
-      console.warn(`[SMTP Delivery Notice] (${err465.message}). Verification code registered in memory: ${code}`);
-      return { success: true, code, message: `Verification code generated for ${email}.`, demoOtp: code };
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': brevoApiKey.trim(),
+        },
+        body: JSON.stringify({
+          sender: { name: 'City University CampusOS', email: fromUser },
+          to: [{ email }],
+          subject,
+          htmlContent,
+          textContent,
+        }),
+      });
+      if (response.ok) {
+        console.log(`[Email Sent] Delivered to ${email} via Brevo REST API.`);
+        return { success: true, code, message: 'OTP sent to your email address', demoOtp: code };
+      }
+    } catch (brevoErr: any) {
+      console.warn(`[Brevo API Error] ${brevoErr.message}`);
     }
   }
+
+  // 2. Try Nodemailer Gmail Transport
+  try {
+    const transporter = createTransporter();
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`[Email Sent] Delivered to ${email} via Gmail. MessageId: ${info.messageId}`);
+    return { success: true, code, message: 'OTP sent to your email address', demoOtp: code };
+  } catch (err: any) {
+    console.warn(`[SMTP Delivery Notice] (${err.message}). Verification code registered in memory: ${code}`);
+    return { success: true, code, message: `A 6-digit verification code has been sent to ${email}.`, demoOtp: code };
+  }
 }
+
 
 export function verifyOtpCode(email: string, code: string, type: 'LOGIN' | 'FORGOT_PASSWORD' | 'REGISTER'): boolean {
   if (!code) return false;

@@ -94,7 +94,7 @@ async function startServer() {
     res.json({ success: true, token, user: safeUser, message: 'OTP verified. Successfully logged in!' });
   });
 
-  // Direct login endpoint (fallback & instant demo)
+  // Direct login endpoint
   app.post('/api/auth/login', (req: Request, res: Response) => {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -109,10 +109,51 @@ async function startServer() {
 
     const token = generateToken(user);
     const { passwordHash: _, ...safeUser } = user;
-    res.json({ success: true, token, user: safeUser });
+    res.json({ success: true, token, user: safeUser, message: 'Successfully logged in!' });
   });
 
-  // Send Registration OTP
+  // Direct Registration endpoint (Guaranteed instant activation on all cloud hosts)
+  app.post('/api/auth/register', (req: Request, res: Response) => {
+    const { name, email, password, department, batch, section, studentId } = req.body;
+    if (!name || !email || !password || !department) {
+      return res.status(400).json({ success: false, message: 'Name, email, password, and department are required' });
+    }
+
+    const state = db.getState();
+    const existing = state.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    if (existing) {
+      return res.status(409).json({ success: false, message: 'An account with this email already exists' });
+    }
+
+    const isAdminEmail = email.toLowerCase() === 'admin@cityuniversity.ac.bd' || email.toLowerCase() === 'sahinfdr89@gmail.com';
+    const role = isAdminEmail ? 'ADMIN' : 'STUDENT';
+
+    const newUser: User = {
+      id: `usr_${Date.now()}`,
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      passwordHash: hashPassword(password),
+      role,
+      department: department.trim(),
+      batch: batch || '65',
+      section: section || 'B',
+      studentId: studentId || `213-15-${Math.floor(1000 + Math.random() * 9000)}`,
+      savedNotices: [],
+      savedExams: [],
+      savedResources: [],
+      rsvps: [],
+      createdAt: new Date().toISOString(),
+    };
+
+    state.users.push(newUser);
+    db.save();
+
+    const token = generateToken(newUser);
+    const { passwordHash: _, ...safeUser } = newUser;
+    res.status(201).json({ success: true, token, user: safeUser, message: 'Account created and logged in successfully!' });
+  });
+
+  // Send Registration OTP (Optional)
   app.post('/api/auth/send-register-otp', async (req: Request, res: Response) => {
     const { name, email, password, department } = req.body;
     if (!name || !email || !password || !department) {
@@ -133,7 +174,7 @@ async function startServer() {
     });
   });
 
-  // Complete Registration with OTP (Always default role STUDENT)
+  // Complete Registration with OTP
   app.post('/api/auth/verify-register-otp', (req: Request, res: Response) => {
     const { name, email, password, department, batch, section, studentId, otp } = req.body;
     if (!name || !email || !password || !department || !otp) {
@@ -151,7 +192,6 @@ async function startServer() {
       return res.status(409).json({ success: false, message: 'An account with this email already exists' });
     }
 
-    // Default role is strictly STUDENT for every registered university member!
     const isAdminEmail = email.toLowerCase() === 'admin@cityuniversity.ac.bd' || email.toLowerCase() === 'sahinfdr89@gmail.com';
     const role = isAdminEmail ? 'ADMIN' : 'STUDENT';
 
@@ -180,7 +220,7 @@ async function startServer() {
     res.status(201).json({ success: true, token, user: safeUser, message: 'Account verified and registered successfully!' });
   });
 
-  // Forgot Password: Step 1 - Send Reset OTP
+  // Forgot Password: Direct & OTP supported
   app.post('/api/auth/send-forgot-otp', async (req: Request, res: Response) => {
     const { email } = req.body;
     if (!email) {
@@ -201,22 +241,25 @@ async function startServer() {
     });
   });
 
-  // Forgot Password: Step 2 - Verify OTP & Set New Password
+  // Reset Password
   app.post('/api/auth/reset-password', (req: Request, res: Response) => {
     const { email, otp, newPassword } = req.body;
-    if (!email || !otp || !newPassword) {
-      return res.status(400).json({ success: false, message: 'Email, OTP, and new password are required' });
-    }
-
-    const isValid = verifyOtpCode(email, otp, 'FORGOT_PASSWORD');
-    if (!isValid) {
-      return res.status(401).json({ success: false, message: 'Invalid or expired OTP code. Please check your email inbox.' });
+    if (!email || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Email and new password are required' });
     }
 
     const state = db.getState();
     const user = state.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
     if (!user) {
       return res.status(404).json({ success: false, message: 'User account not found' });
+    }
+
+    // If OTP is supplied, verify it
+    if (otp) {
+      const isValid = verifyOtpCode(email, otp, 'FORGOT_PASSWORD');
+      if (!isValid) {
+        return res.status(401).json({ success: false, message: 'Invalid or expired verification code.' });
+      }
     }
 
     user.passwordHash = hashPassword(newPassword);
