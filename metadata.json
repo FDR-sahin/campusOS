@@ -1,0 +1,6 @@
+{
+  "name": "CampusOS — City University",
+  "description": "Student-first digital campus hub for City University, Bangladesh. Unified notices, exam schedules, club events, academic resource vault, smart helpdesk, and campus utilities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
